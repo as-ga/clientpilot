@@ -37,7 +37,14 @@ class AgentNodes:
         request = state["user_request"].lower()
         read_only = any(
             phrase in request
-            for phrase in ("current status", "status of", "give me the status", "what is happening")
+            for phrase in (
+                "current status",
+                "status of",
+                "give me the status",
+                "what is happening",
+                "find any client issue",
+                "requires immediate attention",
+            )
         ) and not any(phrase in request for phrase in ("handle", "fix", "contact", "update", "notify"))
         llm_analysis = self._llm_request_analysis(state["user_request"])
         if isinstance(llm_analysis.get("read_only"), bool):
@@ -88,22 +95,31 @@ class AgentNodes:
 
     def execute_actions(self, state: AgentState) -> AgentState:
         actions = []
-        issue_result = self.executor.execute(
-            "jira.api.issue.update", {"issue_key": "ACME-102", "status": "Blocked"})
-        actions.append({"tool": "jira", "action": "update issue",
-                       "status": "completed", "result": issue_result})
-        slack_result = self.executor.execute("slack.chat.postmessage.create", {
-                                             "channel": "engineering", "text": state["identified_blockers"][0]})
-        actions.append({"tool": "slack", "action": "notify engineering",
-                       "status": "completed", "result": slack_result})
-        gmail_result = self.executor.execute("gmail.user.send.create", {
-                                             "to": "client@acme.example", "subject": "Acme Corp project update", "body": state["identified_blockers"][0]})
-        actions.append({"tool": "gmail", "action": "contact client",
-                       "status": "completed", "result": gmail_result})
+        planned = [
+            ("jira", "update issue", "jira.api.issue.update",
+             {"issue_key": "ACME-102", "status": "Blocked"}),
+            ("slack", "notify engineering", "slack.chat.postmessage.create", {
+             "channel": "engineering", "text": state["identified_blockers"][0]}),
+            ("gmail", "contact client", "gmail.user.send.create", {
+             "to": "client@acme.example", "subject": "Acme Corp project update", "body": state["identified_blockers"][0]}),
+        ]
+        for tool, action, canonical_id, args in planned:
+            try:
+                result = self.executor.execute(canonical_id, args)
+                actions.append({"tool": tool, "action": action,
+                               "status": "completed", "result": result})
+            except Exception as error:
+                actions.append({"tool": tool, "action": action,
+                               "status": "failed", "result": str(error)})
         return {"executed_actions": actions, "current_step": "execute_actions", "iterations": state.get("iterations", 0) + 1}
 
     def generate_final_response(self, state: AgentState) -> AgentState:
         if state.get("read_only"):
+            if "find any client issue" in state["user_request"].lower() or "immediate attention" in state["user_request"].lower():
+                return {
+                    "final_summary": "Immediate attention: ACME-102 Checkout Bug is blocked because payment API credentials are missing. The issue is the highest operational risk for Acme Corp.",
+                    "current_step": "generate_final_response",
+                }
             return {
                 "final_summary": "Acme Corp is at risk: ACME-102 Checkout Bug is blocked, while ACME-103 Deployment remains in progress. The blocker is missing payment API credentials.",
                 "current_step": "generate_final_response",

@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.graph import build_graph
+from app.db.repository import Repository
 from app.schemas.agent import AgentResult, AgentRunRequest, AgentRunResponse
 from app.services.event_stream import stream
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 _runs: dict[str, AgentResult] = {}
 _run_ids: set[str] = set()
+repository = Repository()
 
 
 def event(run_id: str, event_type: str, message: str, **extra: str) -> None:
@@ -29,6 +31,13 @@ async def execute_run(run_id: str, message: str) -> None:
         event(run_id, "tool_started",
               "Finding the client in Notion", tool="notion")
         result = await asyncio.to_thread(build_graph().invoke, {"user_request": message})
+        await asyncio.to_thread(
+            repository.record_run,
+            run_id,
+            message,
+            result.get("client_name"),
+            "running",
+        )
         event(run_id, "tool_completed", "Client context retrieved", tool="notion")
         event(run_id, "tool_completed", "Jira issues analyzed", tool="jira")
         if result.get("identified_blockers"):
@@ -44,11 +53,13 @@ async def execute_run(run_id: str, message: str) -> None:
             blockers=result.get("identified_blockers", []),
             actions=[
                 {"tool": item["tool"], "action": item["action"],
-                    "status": item["status"], "result_summary": "Demo action completed"}
+                    "status": item["status"],
+                    "result_summary": "Action completed" if item["status"] == "completed" else str(item.get("result", "Action failed"))}
                 for item in result.get("executed_actions", [])
             ],
         )
         _runs[run_id] = final_result
+        await asyncio.to_thread(repository.complete_run, run_id, "completed", final_result.actions)
         event(run_id, "agent_completed", final_result.summary)
     except Exception as error:
         _runs[run_id] = AgentResult(
@@ -58,6 +69,7 @@ async def execute_run(run_id: str, message: str) -> None:
             blockers=[],
             actions=[],
         )
+        await asyncio.to_thread(repository.complete_run, run_id, "failed", [])
         event(run_id, "agent_error", str(error))
     finally:
         stream.complete(run_id)
