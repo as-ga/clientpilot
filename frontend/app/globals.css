@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #17211b;
+  --paper: #f5f6f0;
+  --signal: #d86a3d;
+  --moss: #59715d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+}
