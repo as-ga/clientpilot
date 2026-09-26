@@ -14,18 +14,22 @@ export function AgentConsole() {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [finalResult, setFinalResult] = useState<string | null>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setRunning(true);
     setError(null);
     setEvents([]);
+    setFinalResult(null);
     try {
       const run = await startAgent(message);
       subscribeToRun(
         run.run_id,
         (nextEvent) => {
           setEvents((current) => [...current, nextEvent]);
+          if (nextEvent.type === "agent_completed")
+            setFinalResult(nextEvent.message);
           if (
             nextEvent.type === "agent_completed" ||
             nextEvent.type === "agent_error"
@@ -125,6 +129,14 @@ export function AgentConsole() {
                 </div>
               ))}
             </div>
+            {finalResult && (
+              <div className="mt-10 border border-signal/35 bg-signal/10 p-5">
+                <p className="font-sans text-xs font-bold uppercase tracking-widest text-signal">
+                  Final result
+                </p>
+                <p className="mt-3 text-xl leading-relaxed">{finalResult}</p>
+              </div>
+            )}
           </section>
         </section>
       </div>
