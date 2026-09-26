@@ -1,0 +1,12 @@
+fastapi==0.141.1
+uvicorn[standard]>=0.35,<0.36
+pydantic-settings>=2.10,<3
+langgraph>=0.6,<1
+langchain-openai>=0.3,<1
+swytchcode-runtime>=0.1,<1
+SQLAlchemy>=2.0,<3
+psycopg[binary]>=3.2,<4
+sse-starlette>=3,<4
+httpx>=0.28,<1
+pytest>=8,<9
+pytest-asyncio>=1,<2
