@@ -1,0 +1,23 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+backend/.venv/
+
+# Node
+node_modules/
+.next/
+out/
+frontend/.env.local
+
+# Swytchcode local bundles and credentials
+.swytchcode/
+
+# OS
+.DS_Store
